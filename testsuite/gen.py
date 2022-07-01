@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import operator
+import os.path
 import typing
 
 import sys
@@ -59,8 +60,17 @@ def combine_requests(req: dict) -> typing.Generator[dict, None, None]:
 
 
 def main():
-    with open(sys.argv[1]) as f:
-        rpcs = yaml.load(f)
+    rpcs = []
+    path = sys.argv[1]
+    if os.path.isdir(path):
+        for filename in os.listdir(path):
+            if filename.endswith('.yaml'):
+                with open(os.path.join(path, filename)) as f:
+                    rpcs.extend(yaml.safe_load(f))
+    else:
+        with open(path) as f:
+            rpcs.extend(yaml.safe_load(f))
+
     for rpc in rpcs:
         for req in combine_requests(rpc['requests']):
             print(rpc['method'])
