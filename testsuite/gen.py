@@ -1,9 +1,11 @@
 from __future__ import annotations
+
+import json
+import operator
+import typing
+
 import sys
 import yaml
-import json
-import typing
-import operator
 
 
 def itemsetter(obj, key):
@@ -15,7 +17,7 @@ def need_combine(key: str) -> bool:
 
 
 def traverse_combinators(
-    obj: typing.Union[dict, list],
+        obj: typing.Union[dict, list],
 ) -> list[tuple[list[typing.Any], callable[[typing.Any]]]]:
     ret = []
 
@@ -62,6 +64,7 @@ def main():
     for rpc in rpcs:
         for req in combine_requests(rpc['requests']):
             print(rpc['method'])
+            print(json.dumps(rpc.get('prepare', '')))
             print(json.dumps(req))
             print(json.dumps(rpc.get('asserts', [])))
 

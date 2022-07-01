@@ -8,6 +8,15 @@ import (
 	"strings"
 )
 
+const pyTemplate = `
+import os
+import sys
+import json
+
+def env(key):
+	return os.getenv(key, "")
+`
+
 func bash(command string, env []string) (out string, err error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -18,6 +27,27 @@ func bash(command string, env []string) (out string, err error) {
 	cmd.Env = env
 	output, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(output)), err
+}
+
+func py(command string, env []string) (out string, err error) {
+	python := os.Getenv("PYTHON")
+	if python == "" {
+		python = "python"
+	}
+	cmd := exec.Command(python, "-c", pyTemplate+command)
+	cmd.Env = env
+	output, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(output)), err
+}
+
+func execCommand(command string, env []string) (out string, err error) {
+	if len(command) == 0 {
+		return "", nil
+	}
+	if strings.HasPrefix(command, "py:") {
+		return py(strings.TrimPrefix(strings.TrimPrefix(command, "py:"), " "), env)
+	}
+	return bash(command, env)
 }
 
 func combine(candicates [][]string) (res [][]string) {

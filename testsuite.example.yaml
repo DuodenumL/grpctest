@@ -1,4 +1,5 @@
 - method: AddPod
+  prepare: for i in {0..6}; do eru-cli pod remove local$i; done || echo ''
   requests:
     name@:
       - local0
@@ -15,12 +16,47 @@
   asserts:
     for_each:
       equals:
-        - actual: etcdctl get --print-value-only /eru/pod/info/$(jq -r '.name' <<<$req) | jq -r '.name'
-          expected: jq -r '.name' <<<$req
+        - actual: etcdctl get --print-value-only $ETCD_PREFIX/pod/info/$(jq -r '.name' <<<$req) | jq -r '.name'
+          expected: |
+            py:
+            print(json.loads(env('req'))['name'])
         - actual: jq -r '.name' <<<$resp
-          expected: jq -r '.name' <<<$req
+          expected: |
+            py:
+            print(json.loads(env('req'))['name'])
         - actual: jq -r '.desc' <<<$resp
-          expected: jq -r '.desc' <<<$req
+          expected: |
+            py:
+            print(json.loads(env('req'))['desc'])
+
+- method: AddPod
+  prepare: |
+    eru-cli node resource --fix automated-test-node-0 || echo ''
+    for id in `eru-cli --output json node workloads automated-test-node-0 | jq -r '.[].id'`; do eru-cli workload remove --force $id; done || echo ''
+    eru-cli node remove automated-test-node-0 || echo ''
+    eru-cli pod remove automated-test-pod || echo ''
+  requests:
+    name: automated-test-pod
+    desc: 'used for automated testing'
+  asserts:
+    for_each:
+      equals:
+        - actual: etcdctl get --print-value-only $ETCD_PREFIX/pod/info/$(jq -r '.name' <<<$req) | jq -r '.name'
+          expected: |
+            py:
+            print(json.loads(env('req'))['name'])
+        - actual: jq -r '.name' <<<$resp
+          expected: |
+            py:
+            print(json.loads(env('req'))['name'])
+        - actual: jq -r '.desc' <<<$resp
+          expected: |
+            py:
+            print(json.loads(env('req'))['desc'])
+    after_completion:
+      run_success:
+        - eru-cli node add --endpoint $DOCKERD_ADDR --nodename automated-test-node-0 automated-test-pod
+
 
 - method: CreateWorkload
   requests:
@@ -28,10 +64,13 @@
     entrypoint:
       name: zc
       command: sleep 1000000
-    podname: test
+    podname: automated-test-pod
+    node_filter:
+      includes:
+        - automated-test-node-0
     image: bash
     count: 2
-    resource_opts:
+    old_resource_opts:
       cpu_quota_limit: 0.1
       cpu_bind: true
       memory_limit: 14000000
@@ -47,16 +86,16 @@
         - actual: eru-cli -o json workload list | jq length
           expected: echo 2
       run_success:
-        - test -p /tmp/fifo || mkfifo /tmp/fifo; echo -e $resps | jq '.id' | jq -sc > /tmp/fifo
+        - for id in `echo -e $resps | jq '.id'`; do echo $id; done
+      run:
+        - echo removing workloads
+        - for id in `eru-cli --output json node workloads automated-test-node-0 | jq -r '.[] .id'`; do eru-cli workload remove --force $id; done
+        - sleep 5 || echo '' # used to wait for the remapping
 
-- method: RemoveWorkload
+- method: RemovePod
+  prepare: eru-cli node remove automated-test-node-0
   requests:
-    ids: $bash(test -p /tmp/fifo || mkfifo /tmp/fifo; cat /tmp/fifo)
-    force: true
+    name: automated-test-pod
   asserts:
     for_each:
-      equals:
-        - actual: eru-cli -o json workload get $(jq -r '.id' <<<$resp) 2>/dev/null || echo not found
-          expected: echo not found
-        - actual: etcdctl get /eru/ --prefix | grep $(jq -r '.id' <<<$resp) -c || true
-          expected: echo 0
+    after_completion:

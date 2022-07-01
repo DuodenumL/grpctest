@@ -8,6 +8,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/projecteru2/grpctest/pbreflect"
 	"github.com/projecteru2/grpctest/testsuite"
+
+	_ "github.com/joho/godotenv/autoload"
 	cli "github.com/urfave/cli/v2"
 )
 
@@ -54,14 +56,7 @@ func action(c *cli.Context) (err error) {
 		}
 		return errors.WithMessage(err, string(errMsg))
 	}
-	suites := testsuite.MustParse(stdout)
-
-	t := &T{}
-	for suite := range suites {
-		if !suite.Run(t, service) {
-			return errors.New("test failed")
-		}
-	}
+	testsuite.Run(stdout, service)
 
 	return
 }
